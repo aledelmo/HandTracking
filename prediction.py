@@ -7,31 +7,19 @@ Author : Alessandro Delmonte
 Contact : alessandro.delmonte@institutimagine.org
 """
 
-
 import cv2
-import csv
 import mediapipe as mp
 import numpy as np
+import tensorflow as tf
+
 
 mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
 mp_hands = mp.solutions.hands
 
-NULL_LABEL = 0
-OK_LABEL = 1
-FIST_LABEL = 2
+model = tf.keras.models.load_model('keypoint_classifier.hdf5')
 
-ds = []
-idx = 0
-
-
-def on_mouse_clicked(event, _x, _y, flags, param):
-    global idx
-    if event == cv2.EVENT_LBUTTONDOWN:
-        current = {'ID': idx, 'gesture': flags, 'keypoints': (param - param[0]).tolist()}
-        ds.append(current)
-        idx += 1
-
+actions = {0: 'palm', 1: 'OK', 2: 'fist'}
 
 if __name__ == '__main__':
     cap = cv2.VideoCapture(0)
@@ -60,35 +48,32 @@ if __name__ == '__main__':
                             frame_landmarks[21*j+i][1] = int(landmark.y * h)
                             frame_landmarks[21*j+i][2] = landmark.z
 
-                    _max = np.amax(frame_landmarks, axis=0)[-1]
-                    _min = np.amin(frame_landmarks, axis=0)[-1]
+                    _max = np.amax(frame_landmarks[:21], axis=0)
+                    _min = np.amin(frame_landmarks[:21], axis=0)
 
-                    frame_landmarks[:, -1] = 255 * ((frame_landmarks[:, -1] - _min) / (_max - _min))
+                    frame_landmarks[:, -1] = 255 * ((frame_landmarks[:, -1] - _min[-1]) / (_max[-1] - _min[-1]))
+
+                    bbox = cv2.rectangle(image, (int(_min[0]), int(_min[1])), (int(_max[0]), int(_max[1])),
+                                         (255, 0, 0), 3)
 
                     for lm in frame_landmarks:
                         cv2.circle(image, (int(lm[0]), int(lm[1])), 8, thickness=-1, color=[lm[2]] * 3)
 
-            cv2.imshow('handDetector', cv2.flip(image, 1))
-            #cv2.setMouseCallback('handDetector', on_mouse_clicked, param=frame_landmarks)
+                    image = cv2.flip(image, 1)
 
-            if cv2.waitKey(1) & 0xFF == ord('n'):
-                on_mouse_clicked(cv2.EVENT_LBUTTONDOWN, None, None, NULL_LABEL, frame_landmarks)
-                print('null')
-            if cv2.waitKey(1) & 0xFF == ord('o'):
-                on_mouse_clicked(cv2.EVENT_LBUTTONDOWN, None, None, OK_LABEL, frame_landmarks)
-                print('ok')
-            if cv2.waitKey(1) & 0xFF == ord('f'):
-                on_mouse_clicked(cv2.EVENT_LBUTTONDOWN, None, None, FIST_LABEL, frame_landmarks)
-                print('fist')
+                    to_predict = frame_landmarks[:21, :2]
+                    to_predict = (to_predict - to_predict[0]).flatten()
+                    to_predict = np.reshape(to_predict, (1, to_predict.shape[0]))
+                    predict_result = model.predict(to_predict)
+
+                    text = cv2.putText(image, actions[np.argmax(predict_result)], (w - int(_min[0]), int(_min[1])),
+                                       cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
+            else:
+                image = cv2.flip(image, 1)
+
+            cv2.imshow('handDetector', image)
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
     cap.release()
-
-    csv_columns = ['ID', 'gesture', 'keypoints']
-    with open('ds.csv', "w") as output_file:
-        writer = csv.DictWriter(output_file, fieldnames=csv_columns)
-        writer.writeheader()
-        for data in ds:
-            writer.writerow(data)
