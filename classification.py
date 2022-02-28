@@ -29,14 +29,10 @@ x_dataset = np.array(x_dataset)[:, :21, :2]
 x_dataset = np.reshape(x_dataset, (x_dataset.shape[0], x_dataset.shape[1] * x_dataset.shape[2]))
 y_dataset = np.array(y_dataset)
 
-x_train, x_test, y_train, y_test = train_test_split(x_dataset, y_dataset, train_size=0.75, random_state=RANDOM_SEED)
+'--------------------------------'
 
-'''
-tf.keras.layers.Dropout(0.2),
-tf.keras.layers.Dense(20, activation='relu'),
-tf.keras.layers.Dropout(0.4),
-tf.keras.layers.Dense(10, activation='relu'),
-'''
+x_train, x_test, y_train, y_test = train_test_split(x_dataset, y_dataset, train_size=0.75,
+                                                    random_state=RANDOM_SEED)
 
 model = tf.keras.models.Sequential([
     tf.keras.layers.Input((21 * 2, )),
@@ -50,28 +46,17 @@ cp_callback = tf.keras.callbacks.ModelCheckpoint(
     model_save_path, verbose=1, save_weights_only=False)
 es_callback = tf.keras.callbacks.EarlyStopping(patience=20, verbose=1)
 
-model.compile(
-    optimizer='adam',
-    loss='sparse_categorical_crossentropy',
-    metrics=['accuracy']
-)
+model.compile(optimizer='adam', loss='sparse_categorical_crossentropy',
+              metrics=['accuracy'])
 
-model.fit(
-    x_train,
-    y_train,
-    epochs=1000,
-    batch_size=128,
-    validation_data=(x_test, y_test),
-    callbacks=[cp_callback, es_callback]
-)
+model.fit(x_train, y_train, epochs=1000, batch_size=128, validation_data=(x_test, y_test),
+          callbacks=[cp_callback, es_callback])
 
 val_loss, val_acc = model.evaluate(x_test, y_test, batch_size=128)
 
 model = tf.keras.models.load_model(model_save_path)
 
-predict_result = model.predict(np.array([x_test[0]]))
-print(np.squeeze(predict_result))
-print(np.argmax(np.squeeze(predict_result)))
+'--------------------------------'
 
 
 def print_confusion_matrix(y_true, _y_pred, report=True):
@@ -89,7 +74,7 @@ def print_confusion_matrix(y_true, _y_pred, report=True):
         print('Classification Report')
         print(classification_report(y_test, _y_pred))
 
-print(x_test)
+
 y_pred = model.predict(x_test)
 y_pred = np.argmax(y_pred, axis=1)
 
