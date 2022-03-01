@@ -1,0 +1,6 @@
+[submodule "OpenGoPro"]
+	path = OpenGoPro
+	url = https://github.com/gopro/OpenGoPro
+[submodule "gopro-py-api"]
+	path = gopro-py-api
+	url = https://github.com/KonradIT/gopro-py-api

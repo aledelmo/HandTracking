@@ -11,14 +11,13 @@ import cv2
 import mediapipe as mp
 import numpy as np
 import tensorflow as tf
-from os import system
 
 
 mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
 mp_hands = mp.solutions.hands
 
-model = tf.keras.models.load_model('keypoint_classifier.hdf5')
+model = tf.keras.models.load_model('trained_models/keypoint_classifier.hdf5')
 
 actions = {0: 'palm', 1: 'OK', 2: 'fist'}
 
@@ -26,7 +25,7 @@ if __name__ == '__main__':
     cap = cv2.VideoCapture(0)
     lum = 1
     tracking = False
-    with mp_hands.Hands(model_complexity=1, min_detection_confidence=0.5, min_tracking_confidence=0.5) as hands:
+    with mp_hands.Hands(model_complexity=0, min_detection_confidence=0.5, min_tracking_confidence=0.5) as hands:
         while cap.isOpened():
             success, image = cap.read()
             if not success:
@@ -41,8 +40,6 @@ if __name__ == '__main__':
 
             h, w, c = image.shape
             frame_landmarks = np.zeros(shape=(42, 3))
-
-            system('say Hello world!')
 
             if results.multi_hand_landmarks:
                 if 0 < len(results.multi_hand_landmarks) < 3:
@@ -88,7 +85,7 @@ if __name__ == '__main__':
                                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
 
                     if len(results.multi_hand_landmarks) == 2 :
-                        if  np.argmax(predict_result2) == 2 and np.argmax(predict_result) == 0:
+                        if np.argmax(predict_result2) == 2 and np.argmax(predict_result) == 0:
                             if tracking:
                                 image += lum
                                 lum += 5
