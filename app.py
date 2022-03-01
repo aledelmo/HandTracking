@@ -30,7 +30,7 @@ class Thread(QThread):
 
     def __init__(self, parent=None):
         QThread.__init__(self, parent)
-        self.trained_file = None
+        self.interpreter = None
         self.status = True
         self.cap = True
         self.actions = {0: 'palm', 1: 'OK', 2: 'fist'}
@@ -50,8 +50,6 @@ class Thread(QThread):
         self.signatures = self.interpreter.get_signature_list()
         self.input_index = self.interpreter.get_input_details()[0]["index"]
         self.output_index = self.interpreter.get_output_details()[0]["index"]
-
-        #self.trained_file = tf.keras.models.load_model(os.path.join('trained_models', fname))
 
     def run(self):
         self.cap = cv2.VideoCapture("udp://127.0.0.1:10000", cv2.CAP_FFMPEG)

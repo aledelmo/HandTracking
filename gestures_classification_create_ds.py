@@ -87,7 +87,7 @@ if __name__ == '__main__':
     cap.release()
 
     csv_columns = ['ID', 'gesture', 'keypoints']
-    with open('ds.csv', "w") as output_file:
+    with open('resources/ds.csv', "w") as output_file:
         writer = csv.DictWriter(output_file, fieldnames=csv_columns)
         writer.writeheader()
         for data in ds:
