@@ -11,6 +11,7 @@ import pandas as pd
 import numpy as np
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
+import pathlib
 
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -19,6 +20,7 @@ from sklearn.metrics import confusion_matrix, classification_report
 NUM_CLASSES = 3
 RANDOM_SEED = 42
 model_save_path = 'keypoint_classifier.hdf5'
+final_model = 'trained_models/final.tflite'
 
 ds = pd.read_csv('ds.csv', converters={'keypoints': pd.eval})
 
@@ -54,9 +56,25 @@ model.fit(x_train, y_train, epochs=1000, batch_size=128, validation_data=(x_test
 
 val_loss, val_acc = model.evaluate(x_test, y_test, batch_size=128)
 
-model = tf.keras.models.load_model(model_save_path)
+converter = tf.lite.TFLiteConverter.from_keras_model(model)
+converter.optimizations = [tf.lite.Optimize.DEFAULT]
+converter.target_spec.supported_types = [tf.float16]
+
+tflite_model = converter.convert()
+
+tflite_models_dir = pathlib.Path("trained_models/")
+tflite_models_dir.mkdir(exist_ok=True, parents=True)
+tflite_model_file = tflite_models_dir/"final_model.tflite"
+tflite_model_file.write_bytes(tflite_model)
 
 '--------------------------------'
+
+interpreter = tf.lite.Interpreter(model_path='trained_models/final_model.tflite')
+interpreter.allocate_tensors()
+
+signatures = interpreter.get_signature_list()
+input_index = interpreter.get_input_details()[0]["index"]
+output_index = interpreter.get_output_details()[0]["index"]
 
 
 def print_confusion_matrix(y_true, _y_pred, report=True):
@@ -75,8 +93,12 @@ def print_confusion_matrix(y_true, _y_pred, report=True):
         print(classification_report(y_test, _y_pred))
 
 
-y_pred = model.predict(x_test)
-y_pred = np.argmax(y_pred, axis=1)
+y_pred = []
+for ex in x_test:
+    interpreter.set_tensor(input_index, np.expand_dims(ex, axis=0).astype(np.float32))
+    interpreter.invoke()
+    predictions = interpreter.get_tensor(output_index)[0]
+    y_pred.append(np.argmax(predictions))
 
 print_confusion_matrix(y_test, y_pred)
 
