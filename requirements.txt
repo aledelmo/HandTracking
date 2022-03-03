@@ -1,0 +1,10 @@
+opencv-python-headless
+gtts
+mediapipe
+tensorflow
+tensorflow-model-optimization
+playsound
+goprocam
+pyside6
+seaborn
+scikit-learn
