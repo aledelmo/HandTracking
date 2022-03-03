@@ -76,6 +76,6 @@ def play_and_annotate(video_filepath, ds_filepath):
 
 
 if __name__ == "__main__":
-    video_training = os.path.join("resources", "GOPR1385.MP4")
+    video_training = os.path.join("resources", "videos", "GOPR1387.MP4")
     ds_path = os.path.join("resources", "ds.csv")
     play_and_annotate(video_training, ds_path)

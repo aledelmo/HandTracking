@@ -49,6 +49,7 @@ class InferThread(QThread):
         self.cap = True
         self.actions = {0: 'None', 1: 'Start', 2: 'Stop'}
         self.goproCamera = GoProCamera.GoPro()
+        self.tracking = False
         # tts = gtts.gTTS("Enregistrement", lang="fr")
         # tts.save("tts.mp3")
 
@@ -72,7 +73,6 @@ class InferThread(QThread):
     def run(self):
         self.cap = cv2.VideoCapture("udp://127.0.0.1:10000?overrun_nonfatal=1&fifo_size=300000", cv2.CAP_FFMPEG)
         while self.status:
-            tracking = False
             tracking_start = None
             with mp.solutions.hands.Hands(model_complexity=0, min_detection_confidence=0.5,
                                           min_tracking_confidence=0.5) as hands:
@@ -117,8 +117,6 @@ class InferThread(QThread):
                                 cv2.rectangle(image, (int(_min2[0]), int(_min2[1])), (int(_max2[0]), int(_max2[1])),
                                               (255, 0, 0), 3)
 
-                                image = cv2.flip(image, 1)
-
                                 frame_landmarks -= frame_landmarks[0]
 
                                 to_predict = frame_landmarks[:21, :2].flatten()
@@ -127,8 +125,7 @@ class InferThread(QThread):
                                 self.interpreter.invoke()
                                 predict_result = self.interpreter.get_tensor(self.output_index)[0]
 
-                                cv2.putText(image, self.actions[np.argmax(predict_result)], (w - int(_min1[0]),
-                                                                                             int(_min1[1])),
+                                cv2.putText(image, self.actions[np.argmax(predict_result)], _min1[:2].astype(np.uint16),
                                             cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
 
                                 to_predict = frame_landmarks[21:, :2].flatten()
@@ -137,33 +134,27 @@ class InferThread(QThread):
                                 self.interpreter.invoke()
                                 predict_result2 = self.interpreter.get_tensor(self.output_index)[0]
 
-                                cv2.putText(image, self.actions[np.argmax(predict_result2)], (w - int(_min2[0]),
-                                                                                              int(_min2[1])),
+                                cv2.putText(image, self.actions[np.argmax(predict_result2)], _min2[:2].astype(np.uint16),
                                             cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
 
-                                if len(results.multi_hand_landmarks) == 2:
-                                    if np.argmax(predict_result2) == 2 and np.argmax(predict_result) == 0:
-                                        if not tracking:
-                                            playsound("resources/tts.mp3", block=False)
-                                            tracking_start = datetime.now()
-                                            self.print_message("Tracking started at {}".format(tracking_start))
-                                        tracking = True
-                                else:
-                                    if tracking:
-                                        time_diff = datetime.now()-tracking_start
-                                        time_diff_formatted = "{} minutes {} seconds".format(time_diff.seconds // 60,
-                                                                                             time_diff.seconds % 60)
-                                        self.print_message("Tracking lasted {}".format(time_diff_formatted))
-                                        self.updateTable.emit({'Date Start': [tracking_start],
-                                                               'Date End': [datetime.now()],
-                                                               'Date Delta': [time_diff_formatted]})
-                                    tracking = False
+                                if (np.argmax(predict_result2) == 1 or np.argmax(predict_result) == 1) and not self.tracking:
+                                    playsound("resources/tts.mp3", block=False)
+                                    tracking_start = datetime.now()
+                                    self.print_message("Tracking started at {}".format(tracking_start))
+                                    self.tracking = True
+                                elif (np.argmax(predict_result2) == 2 or np.argmax(predict_result) == 2) and self.tracking:
+                                    time_diff = datetime.now() - tracking_start
+                                    time_diff_formatted = "{} minutes {} seconds".format(time_diff.seconds // 60,
+                                                                                         time_diff.seconds % 60)
+                                    self.print_message("Tracking lasted {}".format(time_diff_formatted))
+                                    self.updateTable.emit({'Date Start': [tracking_start],
+                                                           'Date End': [datetime.now()],
+                                                           'Date Delta': [time_diff_formatted]})
+                                    self.tracking = False
 
-                                if tracking:
-                                    cv2.putText(image, "RECORDING", (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 1,
-                                                (0, 0, 255), 3)
-                        else:
-                            image = cv2.flip(image, 1)
+                        if self.tracking:
+                            cv2.putText(image, "RECORDING", (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 1,
+                                        (0, 0, 255), 3)
 
                         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
                         img = QImage(image.data, w, h, c * w, QImage.Format_RGB888)
