@@ -7,74 +7,84 @@ Author : Alessandro Delmonte
 Contact : alessandro.delmonte@institutimagine.org
 """
 
-import pandas as pd
-import numpy as np
-import tensorflow as tf
-from sklearn.model_selection import train_test_split
 import pathlib
-
+import numpy as np
+import pandas as pd
 import seaborn as sns
+import tensorflow as tf
 import matplotlib.pyplot as plt
+import tensorflow_model_optimization as tfmot
+from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, classification_report
 
-NUM_CLASSES = 3
-RANDOM_SEED = 42
-model_save_path = 'keypoint_classifier.hdf5'
-final_model = 'trained_models/final.tflite'
 
-ds = pd.read_csv('ds.csv', converters={'keypoints': pd.eval})
+def parse_ds(_ds_filename):
+    ds = pd.read_csv(_ds_filename, converters={'keypoints': pd.eval})
 
-x_dataset = ds['keypoints'].values.tolist()
-y_dataset = ds['gesture'].values.tolist()
+    x_dataset = ds['keypoints'].values.tolist()
+    y_dataset = ds['gesture'].values.tolist()
 
-x_dataset = np.array(x_dataset)[:, :21, :2]
-x_dataset = np.reshape(x_dataset, (x_dataset.shape[0], x_dataset.shape[1] * x_dataset.shape[2]))
-y_dataset = np.array(y_dataset)
+    x_dataset = np.array(x_dataset)[:, :21, :2]
+    x_dataset = np.reshape(x_dataset, (x_dataset.shape[0], x_dataset.shape[1] * x_dataset.shape[2]))
+    y_dataset = np.array(y_dataset)
 
-'--------------------------------'
+    _x_train, _x_test, _y_train, _y_test = train_test_split(x_dataset, y_dataset, train_size=0.75,
+                                                            random_state=42)
 
-x_train, x_test, y_train, y_test = train_test_split(x_dataset, y_dataset, train_size=0.75,
-                                                    random_state=RANDOM_SEED)
+    return _x_train, _x_test, _y_train, _y_test
 
-model = tf.keras.models.Sequential([
-    tf.keras.layers.Input((21 * 2, )),
-    tf.keras.layers.Dense(32, activation='relu'),
-    tf.keras.layers.Dense(32, activation='relu'),
-    tf.keras.layers.Dense(16, activation='relu'),
-    tf.keras.layers.Dense(NUM_CLASSES, activation='softmax')
-])
 
-cp_callback = tf.keras.callbacks.ModelCheckpoint(
-    model_save_path, verbose=1, save_weights_only=False)
-es_callback = tf.keras.callbacks.EarlyStopping(patience=20, verbose=1)
+def create_train_model(_x_train, _y_train, num_classes=3, quantization_aware_training=True):
+    _model = tf.keras.models.Sequential([
+        tf.keras.layers.Input((21 * 2, )),
+        tf.keras.layers.Dense(32, activation='relu'),
+        tf.keras.layers.Dense(32, activation='relu'),
+        tf.keras.layers.Dense(16, activation='relu'),
+        tf.keras.layers.Dense(num_classes, activation='softmax')
+    ])
 
-model.compile(optimizer='adam', loss='sparse_categorical_crossentropy',
-              metrics=['accuracy'])
+    es_callback = tf.keras.callbacks.EarlyStopping(patience=20, verbose=1)
 
-model.fit(x_train, y_train, epochs=1000, batch_size=128, validation_data=(x_test, y_test),
-          callbacks=[cp_callback, es_callback])
+    if quantization_aware_training:
+        _model = tfmot.quantization.keras.quantize_model(_model)
 
-val_loss, val_acc = model.evaluate(x_test, y_test, batch_size=128)
+    _model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 
-converter = tf.lite.TFLiteConverter.from_keras_model(model)
-converter.optimizations = [tf.lite.Optimize.DEFAULT]
-converter.target_spec.supported_types = [tf.float16]
+    _model.fit(_x_train, _y_train, epochs=1000, batch_size=128, validation_data=(x_test, y_test),
+               callbacks=[es_callback])
 
-tflite_model = converter.convert()
+    return _model
 
-tflite_models_dir = pathlib.Path("trained_models/")
-tflite_models_dir.mkdir(exist_ok=True, parents=True)
-tflite_model_file = tflite_models_dir/"final_model.tflite"
-tflite_model_file.write_bytes(tflite_model)
 
-'--------------------------------'
+def convert_save_model(_model, post_float16_quant=False):
+    converter = tf.lite.TFLiteConverter.from_keras_model(_model)
+    converter.optimizations = [tf.lite.Optimize.DEFAULT]
+    if post_float16_quant:
+        converter.target_spec.supported_types = [tf.float16]
 
-interpreter = tf.lite.Interpreter(model_path='trained_models/final_model.tflite')
-interpreter.allocate_tensors()
+    tflite_model = converter.convert()
 
-signatures = interpreter.get_signature_list()
-input_index = interpreter.get_input_details()[0]["index"]
-output_index = interpreter.get_output_details()[0]["index"]
+    tflite_models_dir = pathlib.Path("trained_models/")
+    tflite_models_dir.mkdir(exist_ok=True, parents=True)
+    tflite_model_file = tflite_models_dir/"final_model_quant.tflite"
+    tflite_model_file.write_bytes(tflite_model)
+
+
+def evaluate_accuracy(_x_test, _y_test):
+    interpreter = tf.lite.Interpreter(model_path='trained_models/final_model_quant.tflite')
+    interpreter.allocate_tensors()
+
+    input_index = interpreter.get_input_details()[0]["index"]
+    output_index = interpreter.get_output_details()[0]["index"]
+
+    y_pred = []
+    for ex in _x_test:
+        interpreter.set_tensor(input_index, np.expand_dims(ex, axis=0).astype(np.float32))
+        interpreter.invoke()
+        predictions = interpreter.get_tensor(output_index)[0]
+        y_pred.append(np.argmax(predictions))
+
+    print_confusion_matrix(_y_test, y_pred)
 
 
 def print_confusion_matrix(y_true, _y_pred, report=True):
@@ -93,12 +103,8 @@ def print_confusion_matrix(y_true, _y_pred, report=True):
         print(classification_report(y_test, _y_pred))
 
 
-y_pred = []
-for ex in x_test:
-    interpreter.set_tensor(input_index, np.expand_dims(ex, axis=0).astype(np.float32))
-    interpreter.invoke()
-    predictions = interpreter.get_tensor(output_index)[0]
-    y_pred.append(np.argmax(predictions))
-
-print_confusion_matrix(y_test, y_pred)
-
+if __name__ == "__main__":
+    x_train, x_test, y_train, y_test = parse_ds('resources/ds.csv')
+    model = create_train_model(x_train, y_train, num_classes=3, quantization_aware_training=True)
+    convert_save_model(model, post_float16_quant=False)
+    evaluate_accuracy(x_test, y_test)
