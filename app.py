@@ -47,7 +47,7 @@ class InferThread(QThread):
         self.output_index = None
         self.status = True
         self.cap = True
-        self.actions = {0: 'palm', 1: 'OK', 2: 'fist'}
+        self.actions = {0: 'None', 1: 'Start', 2: 'Stop'}
         self.goproCamera = GoProCamera.GoPro()
         # tts = gtts.gTTS("Enregistrement", lang="fr")
         # tts.save("tts.mp3")

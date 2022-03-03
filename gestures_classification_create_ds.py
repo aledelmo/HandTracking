@@ -19,7 +19,7 @@ labels = {"n": 0,
           "o": 2}
 
 
-def play_video(video_filepath, ds_filepath):
+def play_and_annotate(video_filepath, ds_filepath):
     video = cv2.VideoCapture(video_filepath)
     cv2.namedWindow("video", cv2.WINDOW_AUTOSIZE)
     ds = []
@@ -78,4 +78,4 @@ def play_video(video_filepath, ds_filepath):
 if __name__ == "__main__":
     video_training = os.path.join("resources", "GOPR1385.MP4")
     ds_path = os.path.join("resources", "ds.csv")
-    play_video(video_training, ds_path)
+    play_and_annotate(video_training, ds_path)
