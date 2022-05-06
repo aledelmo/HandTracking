@@ -1,6 +1,10 @@
 # HandTracking
 
-Hand tracking and gestures recognition for keyframe selection during live-streaming. The app connects to a GoPro over
+Hand tracking and gestures recognition for keyframe selection during live-streaming. 
+
+![tracking](https://i.imgur.com/ErB2m6d.gif)
+
+The app connects to a GoPro over
 a local Wi-Fi network, it streams the live video feed and it detects the presence of hands (with 21 hands key-points) 
 using the [MediaPipe](https://google.github.io/mediapipe/) project. Finally, hand gestures are classified using a 
 quantized TFLite model for low-latency predictions.
@@ -34,6 +38,8 @@ GoPro Compatibility: HERO3, HERO3+, HERO4, HERO+, HERO5, HERO6, Fusion 1, HERO7 
 
 Everything works on CPU with minimal video delay.
 Tested on MacBook Pro (15-inch, 2017)
+
+![gopro](https://i.imgur.com/v6h6alf.png)
 
 ## Contacts
 
